@@ -33,7 +33,6 @@ RUN pecl install mcrypt-1.0.7 \
 && docker-php-ext-enable imagick
 
 COPY ./omeka-s-$sVersion.zip /var/www/
-COPY ./omeka-$classicVersion.zip /var/www/
 
 # Add the Omeka-S code
 RUN unzip -q /var/www/omeka-s-$sVersion.zip -d /var/www/ \
