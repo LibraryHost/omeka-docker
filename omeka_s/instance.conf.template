@@ -1,0 +1,47 @@
+<VirtualHost *:80>
+     ServerAdmin webmaster@localhost
+     ServerName DOMAIN.libraryhost.com
+
+     ErrorLog /var/www/INSTANCE/logs/error.log
+     CustomLog /var/www/INSTANCE/logs/access.log combined
+
+     ProxyPassMatch "^/admin/(assets/.*)$" "http://localhost:XXXXX/$1"
+
+     ProxyRequests off
+     ProxyPreserveHost On
+
+     <Proxy *>
+          Order deny,allow
+          Allow from all
+     </Proxy>
+
+     ProxyPass / http://localhost:XXXXX/
+     ProxyPassReverse / http://localhost:XXXXX/
+</VirtualHost>
+<VirtualHost *:443>
+     ServerAdmin webmaster@localhost
+     ServerName DOMAIN.libraryhost.com
+
+     SSLEngine on
+
+     SSLCertificateFile      /etc/ssl/certs/STAR_libraryhost_com.crt
+     SSLCertificateKeyFile /etc/ssl/private/server.key
+     SSLCACertificateFile /etc/ssl/certs/STAR_libraryhost_com.ca-bundle
+
+     ErrorLog /var/www/INSTANCE/logs/error.log
+     CustomLog /var/www/INSTANCE/logs/access.log combined
+
+     ProxyPassMatch "^/admin/(assets/.*)$" "http://localhost:XXXXX/$1"
+     RequestHeader set X-Forwarded-Proto "https"
+
+     ProxyRequests off
+     ProxyPreserveHost On
+
+     <Proxy *>
+          Order deny,allow
+          Allow from all
+     </Proxy>
+
+     ProxyPass / http://localhost:XXXXX/
+     ProxyPassReverse / http://localhost:XXXXX/
+</VirtualHost>
