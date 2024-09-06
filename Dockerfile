@@ -36,11 +36,11 @@ COPY ./omeka-s-$sVersion.zip /var/www/
 
 # Add the Omeka-S code
 RUN unzip -q /var/www/omeka-s-$sVersion.zip -d /var/www/ \
-        &&  rm /var/www/omeka-s-$sVersion.zip \
-        &&  rm -rf /var/www/html/ \
-        &&  mv /var/www/omeka-s/ /var/www/html \
-        &&  rm /var/www/html/config/database.ini \
-        &&  ln -s /var/www/html/volume/config/database.ini /var/www/html/config/database.ini
+&&  rm /var/www/omeka-s-$sVersion.zip \
+&&  rm -rf /var/www/html/ \
+&&  mv /var/www/omeka-s/ /var/www/html \
+&&  rm /var/www/html/config/database.ini \
+&&  ln -s /var/www/html/volume/config/database.ini /var/www/html/config/database.ini
 
 COPY ./imagemagick-policy.xml /etc/ImageMagick/policy.xml
 COPY ./.htaccess /var/www/html/.htaccess
