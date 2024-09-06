@@ -65,16 +65,7 @@ RUN rm -rf /var/www/html/files/ \
 &&  chown -R www-data:www-data /var/www/html/ \
 &&  chmod 600 /var/www/html/.htaccess
 
-RUN sed -i "s/80/$port/g" /etc/apache2/sites-available/000-default.conf \
-&&  sed -i "s/80/$port/g" /etc/apache2/sites-enabled/000-default.conf \
-&&  sed -i "s/Listen 80/Listen $port/g" /etc/apache2/ports.conf
+COPY ./startup-script.sh /var/www/startup-script.sh
+RUN chmod +x /var/www/startup-script.sh
+ENTRYPOINT ["/var/www/startup-script.sh"]
 
-#RUN if [ "$type" = "classic"]; then \
-#        chmod 600 /var/www/html/volume/config/db.ini; \
-#    else \
-#        chmod 600 /var/www/html/volume/config/database.ini; \
-#    fi
-
-# VOLUME /var/www/html/volume/
-
-# CMD ["apache2-foreground"]
