@@ -5,11 +5,7 @@ MAINTAINER Braydon Justice <braydon.justice@1268456bcltd.ca>
 RUN a2enmod rewrite
 
 ARG version="3.1.2"
-ARG port="226"
-
 ENV version $version
-
-ENV port $port
 
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get -qq update && apt-get -qq -y upgrade
@@ -49,16 +45,6 @@ RUN rm -rf /var/www/html/files/ \
 &&  ln -s /var/www/html/volume/files/ /var/www/html/files \
 &&  chown -R www-data:www-data /var/www/html/
 
-RUN sed -i "s/80/$port/g" /etc/apache2/sites-available/000-default.conf \
-&&  sed -i "s/80/$port/g" /etc/apache2/sites-enabled/000-default.conf \
-&&  sed -i "s/Listen 80/Listen $port/g" /etc/apache2/ports.conf
-
-#RUN if [ "$type" = "classic"]; then \
-#        chmod 600 /var/www/html/volume/config/db.ini; \
-#    else \
-#        chmod 600 /var/www/html/volume/config/database.ini; \
-#    fi
-
-# VOLUME /var/www/html/volume/
-
-# CMD ["apache2-foreground"]
+COPY ./startup-script.sh /var/www/startup-script.sh
+RUN chmod +x /var/www/startup-script.sh
+ENTRYPOINT ["/var/www/startup-script.sh"]
