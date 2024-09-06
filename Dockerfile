@@ -40,7 +40,7 @@ RUN unzip -q /var/www/omeka-$version.zip -d /var/www/ \
 &&  rm -rf /var/www/html/ \
 &&  mv /var/www/omeka-$version/ /var/www/html \
 &&  rm /var/www/html/db.ini \
-&&  ln -s /var/www/html/volume/db.ini /var/www/html/db.ini
+&&  ln -s /var/www/html/volume/config/db.ini /var/www/html/db.ini
 
 COPY ./imagemagick-policy.xml /etc/ImageMagick/policy.xml
 
