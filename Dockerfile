@@ -5,13 +5,9 @@ MAINTAINER Braydon Justice <braydon.justice@1268456bcltd.ca>
 RUN a2enmod rewrite
 
 ARG sVersion="4.1.1"
-ARG classicVersion="3.1.2"
-ARG type="classic"
 ARG port="226"
 
 ENV sVersion $sVersion
-ENV classicVersion $classicVersion
-ENV type $type
 ENV port $port
 
 ENV DEBIAN_FRONTEND noninteractive
@@ -39,22 +35,13 @@ RUN pecl install mcrypt-1.0.7 \
 COPY ./omeka-s-$sVersion.zip /var/www/
 COPY ./omeka-$classicVersion.zip /var/www/
 
-# Add the Omeka-S or Omeka Classic code
-RUN if [ "$type" = "classic"]; then \
-        unzip -q /var/www/omeka-$classicVersion.zip -d /var/www/ \
-        &&  rm /var/www/omeka-$classicVersion.zip \
-        &&  rm -rf /var/www/html/ \
-        &&  mv /var/www/omeka-$classicVersion/ /var/www/html \
-        &&  rm /var/www/html/db.ini \
-        &&  ln -s /var/www/html/volume/config/db.ini /var/www/html/db.ini; \
-    else \
-        unzip -q /var/www/omeka-s-$sVersion.zip -d /var/www/ \
+# Add the Omeka-S code
+RUN unzip -q /var/www/omeka-s-$sVersion.zip -d /var/www/ \
         &&  rm /var/www/omeka-s-$sVersion.zip \
         &&  rm -rf /var/www/html/ \
         &&  mv /var/www/omeka-s/ /var/www/html \
         &&  rm /var/www/html/config/database.ini \
-        &&  ln -s /var/www/html/volume/config/database.ini /var/www/html/config/database.ini; \
-    fi
+        &&  ln -s /var/www/html/volume/config/database.ini /var/www/html/config/database.ini
 
 COPY ./imagemagick-policy.xml /etc/ImageMagick/policy.xml
 COPY ./.htaccess /var/www/html/.htaccess
