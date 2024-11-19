@@ -8,7 +8,7 @@ ram=$5
 version=$6
 domain=$7
 port=$8
-work_dir=/root/created
+work_dir=/root/created/omeka
 
 echo "DB_NAME: ${db_name}"
 echo "DB_PASSWORD: ${db_password}"
@@ -38,7 +38,7 @@ mysql --defaults-file=/root/.my.cnf < ${work_dir}/${db_name}_create.sql
 echo "DONE WITH DB!"
 
 #CREATE DIRECTORIES
-mkdir -p /var/www/${db_name}/{logs,files,config}
+mkdir -p /var/www/${db_name}/{logs,files,config,themes,modules}
 
 #COPY AND EDIT CONFIG FILE
 cp -r ./config/* /var/www/${db_name}/config
