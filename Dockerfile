@@ -43,7 +43,11 @@ COPY ./imagemagick-policy.xml /etc/ImageMagick/policy.xml
 
 # Create one volume for files and set permissions
 RUN rm -rf /var/www/html/files/ \
+&&  rm -rf /var/www/html/themes/ \
+&&  rm -rf /var/www/html/plugins/ \
 &&  ln -s /var/www/html/volume/files/ /var/www/html/files \
+&&  ln -s /var/www/html/volume/themes/ /var/www/html/themes \
+&&  ln -s /var/www/html/volume/plugins/ /var/www/html/plugins \
 &&  chown -R www-data:www-data /var/www/html/
 
 COPY ./startup-script.sh /var/www/startup-script.sh

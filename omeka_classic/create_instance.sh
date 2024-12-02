@@ -38,7 +38,12 @@ mysql --defaults-file=/root/.my.cnf < ${work_dir}/${db_name}_create.sql
 echo "DONE WITH DB!"
 
 #CREATE DIRECTORIES
-mkdir -p /var/www/${db_name}/{logs,files,config,themes,plugins}
+mkdir /mnt/data1/omeka/${db_name}
+ln -s /mnt/data1/omeka/${db_name} /var/www/${db_name}
+mkdir /mnt/data1/omeka/${db_name}/{logs,files,config,themes,modules}
+chmod -R 777 /mnt/data1/omeka/${db_name}
+chown www-data:www-data /var/www/${db_name}
+chown -R www-data:www-data /mnt/data1/omeka/${db_name}
 
 #COPY AND EDIT CONFIG FILE
 cp -r ./config/* /var/www/${db_name}/config
