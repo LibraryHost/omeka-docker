@@ -44,9 +44,13 @@ RUN unzip -q /var/www/omeka-s-$sVersion.zip -d /var/www/ \
 COPY ./imagemagick-policy.xml /etc/ImageMagick/policy.xml
 COPY ./.htaccess /var/www/html/.htaccess
 
-# Create one volume for files and set permissions
+# Create one volume for files, themes, modules and set permissions
 RUN rm -rf /var/www/html/files/ \
+&&  rm -rf /var/www/html/themes/ \
+&&  rm -rf /var/www/html/modules/ \
 &&  ln -s /var/www/html/volume/files/ /var/www/html/files \
+&&  ln -s /var/www/html/volume/themes/ /var/www/html/themes \
+&&  ln -s /var/www/html/volume/modules/ /var/www/html/modules \
 &&  chown -R www-data:www-data /var/www/html/ \
 &&  chmod 600 /var/www/html/.htaccess
 
