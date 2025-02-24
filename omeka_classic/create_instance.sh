@@ -47,6 +47,8 @@ chown -R www-data:www-data /mnt/data1/omeka/${db_name}
 
 #COPY AND EDIT CONFIG FILE
 cp -r ./config/* /var/www/${db_name}/config
+cp -r ./config/.htaccess /var/www/${db_name}/config/.htaccess
+
 
 sed -i "s/USER/${db_name}/g" /var/www/${db_name}/config/db.ini
 sed -i "s/DBNAME/${db_name}/g" /var/www/${db_name}/config/db.ini
