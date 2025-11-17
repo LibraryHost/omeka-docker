@@ -18,6 +18,7 @@ RUN apt-get -qq update && apt-get -qq -y --no-install-recommends install \
     zlib1g-dev \
     imagemagick \
     libmagickwand-dev \
+    poppler-utils \
     vim \
     wget
 
@@ -26,8 +27,8 @@ RUN docker-php-ext-configure gd --with-freetype=/usr/include/ --with-jpeg=/usr/i
 RUN docker-php-ext-install -j$(nproc) iconv pdo pdo_mysql mysqli gd exif
 RUN pecl install mcrypt-1.0.7 \
 &&  docker-php-ext-enable mcrypt \
-&& pecl install imagick \
-&& docker-php-ext-enable imagick
+&&  pecl install imagick \
+&&  docker-php-ext-enable imagick
 
 # COPY ./omeka-$version.zip /var/www/
 # Install Ghostscript
@@ -43,17 +44,8 @@ RUN cd /installs && tar -xvf ghostpdl-9.26.tar.gz
 RUN apt-get -y install autoconf autogen
 RUN cd /installs/ghostpdl-9.26 && ./autogen.sh && ./configure && make -j 5 && make install
 
-
-ARG version="3.1.2"
-ENV version $version
-
-# Add the Omeka Classic code
-ADD https://github.com/omeka/Omeka/releases/download/v$version/omeka-$version.zip /installs/
-RUN unzip -q /installs/omeka-$version.zip -d /var/www/ \
-&&  rm /installs/omeka-$version.zip \
-&&  rm -rf /var/www/html/ \
-&&  mv /var/www/omeka-$version/ /var/www/html \
-&&  rm /var/www/html/db.ini \
+#setup links
+RUN rm /var/www/html/db.ini \
 &&  ln -s /var/www/html/volume/config/db.ini /var/www/html/db.ini \
 &&  rm /etc/ImageMagick-6/policy.xml \
 &&  ln -s /var/www/html/volume/config/policy.xml /etc/ImageMagick-6/policy.xml \
@@ -77,6 +69,27 @@ RUN rm -rf /var/www/html/files/ \
 &&  ln -s /var/www/html/volume/config/ /var/www/html/config \
 &&  chown -R www-data:www-data /var/www/html/
 
-COPY ./startup-script.sh /var/www/startup-script.sh
-RUN chmod +x /var/www/startup-script.sh
-ENTRYPOINT ["/var/www/startup-script.sh"]
+# ADD start-apache.sh /start-apache.sh
+# RUN chmod +x /start-apache.sh
+
+RUN rm /etc/apache2/sites-available/*
+RUN rm /etc/apache2/sites-enabled/*
+RUN rm /etc/apache2/conf-enabled/other-vhosts-access-log.conf
+RUN rm /etc/apache2/conf-available/other-vhosts-access-log.conf
+ADD apache-site-omeka.conf /etc/apache2/sites-available/omeka.conf
+RUN a2ensite omeka
+ADD apache-conf-archon.conf /etc/apache2/conf-available/zzz-omeka.conf
+RUN a2enconf zzz-omeka
+RUN echo 'Listen 28${LH_INSTANCE_NUM}0' > /etc/apache2/ports.conf
+RUN a2enmod rewrite
+
+# Enable verbose error reporting in the CLI (e.g. `php -f index.php`) if we need it.
+RUN sed -i "s/display_errors = .*/display_errors = On/"                 /etc/php/7.4/cli/php.ini
+RUN sed -i "s/display_startup_errors = .*/display_startup_errors = On/" /etc/php/7.4/cli/php.ini
+RUN sed -i "s/error_reporting = .*/error_reporting = E_ALL/"            /etc/php/7.4/cli/php.ini
+
+# Disable verbose error reporting and logging in the web app.
+RUN sed -i "s/log_errors = .*/log_errors = Off/"                         /etc/php/7.4/apache2/php.ini
+RUN sed -i "s/display_errors = .*/display_errors = Off/"                 /etc/php/7.4/apache2/php.ini
+RUN sed -i "s/display_startup_errors = .*/display_startup_errors = Off/" /etc/php/7.4/apache2/php.ini
+
