@@ -1,0 +1,28 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+*.md
+
+# Build scripts
+build-images.sh
+
+# Editor and IDE files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Config templates (we want the actual config files, not templates in some cases)
+# Commented out because we do want .template files copied
+# *.template
