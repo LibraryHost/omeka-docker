@@ -57,6 +57,8 @@ RUN rm /var/www/html/db.ini \
 
 COPY php.ini-production /usr/local/etc/php/php.ini-production
 
+RUN sed -i 's/NO_AUTO_CREATE_USER,//g;s/,NO_AUTO_CREATE_USER//g' /var/www/html/application/libraries/Omeka/Application/Resource/Db.php
+
 # Create one volume for files and set permissions
 RUN rm -rf /var/www/html/files/ \
 &&  rm -rf /var/www/html/themes/ \
