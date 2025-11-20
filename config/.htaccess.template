@@ -1,0 +1,71 @@
+# Omeka .htaccess: Apache configuration file
+#
+# This file is required for Omeka to function correctly.
+
+# --------------- #
+# Error Reporting #
+# --------------- #
+
+# Uncomment the SetEnv line below to turn on error reporting.
+#SetEnv APPLICATION_ENV development
+
+# ------------- #
+# Rewrite Rules #
+# ------------- #
+
+RewriteEngine on
+
+# If you know mod_rewrite is enabled, but you are still getting mod_rewrite
+# errors, uncomment the line below and replace "/" with your base directory.
+#RewriteBase /
+
+# Allow direct access to files (such as theme assets, uploaded files, etc.)
+RewriteCond %{REQUEST_FILENAME} !-f
+
+# Allow direct access to directories
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Disallow directory listings
+Options -Indexes
+
+# All other URLs go to index.php
+RewriteRule .* index.php
+
+# ---------- #
+# PHP Values #
+# ---------- #
+
+# Increase PHP's memory limit to accommodate Omeka's memory requirements.
+php_value memory_limit 128M
+
+# Increase maximum file upload size
+php_value upload_max_filesize 10M
+php_value post_max_size 12M
+
+# Increase maximum input variables (useful for batch editing)
+php_value max_input_vars 3000
+
+# -------- #
+# Security #
+# -------- #
+
+# Prevent access to .htaccess files
+<Files .htaccess>
+order allow,deny
+deny from all
+</Files>
+
+# Prevent access to db.ini
+<Files db.ini>
+order allow,deny
+deny from all
+</Files>
+
+# Prevent access to logs directory
+RedirectMatch 403 ^/application/logs/.*$
+
+# Protect config files
+<FilesMatch "(config\.ini|local\.config\.php)">
+order allow,deny
+deny from all
+</FilesMatch>

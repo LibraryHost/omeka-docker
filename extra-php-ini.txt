@@ -1,0 +1,4 @@
+
+; Custom PHP Settings
+post_max_size = 2G
+upload_max_filesize = 2G

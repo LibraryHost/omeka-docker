@@ -1,0 +1,126 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Site Configuration File ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+[site]
+
+;
+; Title of your Omeka site
+;
+site.title = "My Omeka Classic Site"
+
+;
+; User who owns the database with its username, password and its name.
+; And a prefix for Omeka's table.  They can be left empty if needed.
+;
+db.host = "localhost"
+db.username = "DBUSER"
+db.password = "DBPASSWORD"
+db.dbname = "DBNAME"
+db.prefix = "omeka_"
+db.charset = "utf8"
+db.port = ""
+
+;
+; The directory path to the files (files uploaded to the site).  If the
+; path is relative, it should be relative to the root directory of Omeka.
+;
+fileDerivatives.strategyClass = "Omeka_Storage_Adapter_Filesystem"
+fileDerivatives.filesystemDir = ""
+
+;
+; Only modify these if you are using Dropbox or Amazon S3 for file storage.
+; If you are doing so, delete the fileDerivatives.* lines above and uncomment
+; the appropriate lines below.
+;
+
+; FOR DROPBOX USERS
+;storage.adapter = "Dropbox"
+;storage.adapterOptions.accessToken = ""
+
+; FOR AMAZON S3 USERS
+;storage.adapter = "ZendS3"
+;storage.adapterOptions.accessKeyId =
+;storage.adapterOptions.secretAccessKey =
+;storage.adapterOptions.bucket =
+;storage.adapterOptions.expiration =
+
+;
+; A session specific salt or key. This is randomly generated on install.
+; It ensures that sessions are not shared between two or more different
+; instances of Omeka.
+;
+session.saveHandler = ""
+session.name = ""
+
+;
+; Background file validation should be avoided because it's not compatible
+; with some server configurations.
+;
+background.php.path = ""
+
+;
+; The base URL to use for redirects or other times where the base URL
+; is not available from the request, e.g. cron tasks.  This should be
+; the same URL as if you're accessing the front page from your browser.
+;
+siteUrl = "http://localhost"
+
+;
+; Security key to protect forms from CSRF attacks, and as a general secret
+; value within Omeka.  Randomly generated on install.
+;
+form.secret = ""
+
+mail.transport.type = "Sendmail"
+; If using SMTP for mail transport:
+;mail.transport.host = ""
+;mail.transport.port =
+;mail.transport.name = ""
+;mail.transport.auth = "login"
+;mail.transport.username = ""
+;mail.transport.password = ""
+;mail.transport.ssl = ""
+
+;
+; Change the following to customize error handling for your Omeka installation.
+; See the PHP documentation on error_reporting for details.
+;
+debug.exceptions = false
+debug.request = false
+debug.profiler = false
+debug.email = ""
+debug.emailLogPriority = Zend_Log::ERR
+
+; Mail settings for notifications about uploaded files.
+; Change the following to reflect the credentials of the email account
+; you wish to use for notifications. Required values are host, username,
+; password, from, name, and emailType. You must provide either ssl or tls for security,
+; or neither if your server doesn't support a secure connection.
+; Change the value of jobs.dispatcher to "Omeka_Job_Dispatcher_Adapter_BackgroundProcess"
+; to use background processes for jobs (which enables file upload notifications).
+
+;jobs.dispatcher.longRunning = "Omeka_Job_Dispatcher_Adapter_BackgroundProcess"
+;jobs.dispatcher.default = "Omeka_Job_Dispatcher_Adapter_BackgroundProcess"
+
+;
+; Theme settings
+;
+theme.useInternalAssets = false
+
+;
+; Upgrade-specific settings
+;
+upgrade.autoClearOldBackups = true
+
+;
+; Permissions
+;
+fileValidation.useFileExtension = true
+fileValidation.allowedFileExtensions = "jpg,jpeg,jpe,gif,png,bmp,tif,tiff,psd,ai,txt,rtf,pdf,doc,docx,odt,ods,odp,ppt,pptx,xls,xlsx,avi,mov,mp3,mp4,mpg,mpeg,wmv,wav,aac,aif,aiff,oga,ogv,ogg,webm"
+fileValidation.blacklistedFileExtensions = "php,php4,php5,php7,phtml,pht,phps,exe,scr,bat,com,cmd,vbs,vbe,js,jse,wsf,wsh,htaccess"
+
+; You can also add a site-specific timeout for how long background jobs may run before
+; being killed.
+; For unlimited job runtime, use 0
+;jobs.dispatcher.longRunningJobLimit = 0
