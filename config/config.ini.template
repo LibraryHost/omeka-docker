@@ -27,6 +27,7 @@ db.port = ""
 ;
 fileDerivatives.strategyClass = "Omeka_Storage_Adapter_Filesystem"
 fileDerivatives.filesystemDir = ""
+fileDerivatives.strategy = "Omeka_File_Derivative_Strategy_Imagick"
 
 ;
 ; Only modify these if you are using Dropbox or Amazon S3 for file storage.

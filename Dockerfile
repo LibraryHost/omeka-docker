@@ -5,7 +5,40 @@
 #   docker build --build-arg PHP_VERSION=5.6 --build-arg OMEKA_VERSION=2.2.2 -t omeka-classic:2.2.2-php5.6 .
 #   docker build --build-arg PHP_VERSION=7.4 --build-arg OMEKA_VERSION=2.7.1 -t omeka-classic:2.7.1-php7.4 .
 
+# ============================================================================
+# Stage 1: Builder - Compile Ghostscript
+# ============================================================================
 ARG PHP_VERSION=7.4
+FROM php:${PHP_VERSION}-apache AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies for Ghostscript
+RUN apt-get -qq update && \
+    apt-get -qq -y --no-install-recommends install \
+        build-essential \
+        autoconf \
+        autogen \
+        wget \
+        ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# Compile Ghostscript from source
+RUN mkdir -p /installs && \
+    cd /installs && \
+    wget -q https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs926/ghostpdl-9.26.tar.gz && \
+    tar -xzf ghostpdl-9.26.tar.gz && \
+    cd ghostpdl-9.26 && \
+    ./autogen.sh && \
+    ./configure && \
+    make -j$(nproc) && \
+    make install && \
+    cd / && \
+    rm -rf /installs
+
+# ============================================================================
+# Stage 2: Final Image
+# ============================================================================
 FROM php:${PHP_VERSION}-apache
 
 LABEL maintainer="Braydon Justice <braydon.justice@1268456bcltd.ca>"
@@ -25,28 +58,32 @@ RUN if [ "${PHP_VERSION}" = "5.6" ]; then \
 # Enable Apache rewrite module
 RUN a2enmod rewrite
 
-# Update and install base packages in a single layer with cleanup
+# Install runtime packages only (no -dev packages yet)
 RUN apt-get -qq update && \
     apt-get -qq -y upgrade && \
     apt-get -qq -y --no-install-recommends install \
         unzip \
-        libfreetype6-dev \
-        libjpeg62-turbo-dev \
-        libmcrypt-dev \
+        libfreetype6 \
+        libjpeg62-turbo \
+        libmcrypt4 \
         ffmpeg \
-        libpng-dev \
-        libjpeg-dev \
-        libmemcached-dev \
-        zlib1g-dev \
-        imagemagick \
-        libmagickwand-dev \
+        libpng16-16 \
+        zlib1g \
+        libmagickwand-6.q16-6 \
         poppler-utils \
         vim \
         wget \
-        curl \
-        build-essential \
-        autoconf \
-        autogen && \
+        curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install -dev packages temporarily for PHP extension compilation
+RUN apt-get -qq update && \
+    apt-get -qq -y --no-install-recommends install \
+        libfreetype6-dev \
+        libjpeg62-turbo-dev \
+        libmcrypt-dev \
+        libpng-dev \
+        libmagickwand-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions based on PHP version (combined with imagick to reduce layers)
@@ -63,18 +100,20 @@ RUN if [ "${PHP_VERSION}" = "5.6" ]; then \
     pecl install imagick && \
     docker-php-ext-enable imagick
 
-# Compile and install Ghostscript from source (single optimized layer)
-RUN mkdir -p /installs && \
-    cd /installs && \
-    wget -q https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs926/ghostpdl-9.26.tar.gz && \
-    tar -xzf ghostpdl-9.26.tar.gz && \
-    cd ghostpdl-9.26 && \
-    ./autogen.sh && \
-    ./configure && \
-    make -j$(nproc) && \
-    make install && \
-    cd / && \
-    rm -rf /installs/ghostpdl-9.26*
+# Remove -dev packages after PHP extensions are compiled (saves ~50-100MB)
+RUN apt-get purge -y \
+        libfreetype6-dev \
+        libjpeg62-turbo-dev \
+        libmcrypt-dev \
+        libpng-dev \
+        libmagickwand-dev && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy compiled Ghostscript from builder stage
+COPY --from=builder /usr/local/bin/gs* /usr/local/bin/
+COPY --from=builder /usr/local/share/ghostscript /usr/local/share/ghostscript
+COPY --from=builder /usr/local/lib/libgs* /usr/local/lib/
 
 # Download and install Omeka Classic (combined for smaller layer)
 RUN wget -q https://github.com/omeka/Omeka/releases/download/v${OMEKA_VERSION}/omeka-${OMEKA_VERSION}.zip -O /tmp/omeka.zip && \
