@@ -114,12 +114,13 @@ RUN apt-get purge -y \
 COPY --from=builder /usr/local/bin/gs* /usr/local/bin/
 COPY --from=builder /usr/local/share/ghostscript /usr/local/share/ghostscript
 
-# Copy Ghostscript libraries if they exist (using RUN to avoid COPY errors)
-RUN --mount=type=bind,from=builder,source=/usr/local/lib,target=/tmp/builder-lib \
-    if ls /tmp/builder-lib/libgs* 1> /dev/null 2>&1; then \
-        cp -a /tmp/builder-lib/libgs* /usr/local/lib/ && \
+# Create a temporary marker file in builder if libraries exist, then conditionally copy
+COPY --from=builder /usr/local/lib/ /tmp/ghostscript-libs/
+RUN if ls /tmp/ghostscript-libs/libgs* 1> /dev/null 2>&1; then \
+        cp -a /tmp/ghostscript-libs/libgs* /usr/local/lib/ && \
         ldconfig; \
-    fi
+    fi && \
+    rm -rf /tmp/ghostscript-libs
 
 # Download and install Omeka Classic (combined for smaller layer)
 RUN wget -q https://github.com/omeka/Omeka/releases/download/v${OMEKA_VERSION}/omeka-${OMEKA_VERSION}.zip -O /tmp/omeka.zip && \
