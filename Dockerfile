@@ -76,7 +76,8 @@ RUN apt-get -qq update && \
         curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Install -dev packages temporarily for PHP extension compilation
+# Install -dev packages, build PHP extensions, then remove -dev packages in single layer (saves ~50-100MB)
+# PHP 5.6 uses different syntax for gd and has mcrypt built-in
 RUN apt-get -qq update && \
     apt-get -qq -y --no-install-recommends install \
         libfreetype6-dev \
@@ -84,11 +85,7 @@ RUN apt-get -qq update && \
         libmcrypt-dev \
         libpng-dev \
         libmagickwand-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install PHP extensions based on PHP version (combined with imagick to reduce layers)
-# PHP 5.6 uses different syntax for gd and has mcrypt built-in
-RUN if [ "${PHP_VERSION}" = "5.6" ]; then \
+    if [ "${PHP_VERSION}" = "5.6" ]; then \
         docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/ && \
         docker-php-ext-install -j$(nproc) iconv pdo pdo_mysql mysqli gd exif mcrypt; \
     else \
@@ -98,10 +95,8 @@ RUN if [ "${PHP_VERSION}" = "5.6" ]; then \
         docker-php-ext-enable mcrypt; \
     fi && \
     pecl install imagick && \
-    docker-php-ext-enable imagick
-
-# Remove -dev packages after PHP extensions are compiled (saves ~50-100MB)
-RUN apt-get purge -y \
+    docker-php-ext-enable imagick && \
+    apt-get purge -y \
         libfreetype6-dev \
         libjpeg62-turbo-dev \
         libmcrypt-dev \
