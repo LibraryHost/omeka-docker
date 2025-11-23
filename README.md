@@ -5,7 +5,9 @@ This is a unified Docker setup for Omeka Classic that supports both older versio
 ## Features
 
 - **Multi-PHP Version Support**: Builds with either PHP 5.6 or PHP 7.4 based on build arguments
-- **Automatic Omeka Download**: Downloads the specified Omeka version during build from GitHub releases
+- **Runtime Omeka Installation**: Downloads the specified Omeka version on first container startup, not at build time
+- **Version Flexibility**: Single image can run any Omeka version by changing the `OMEKA_VERSION` environment variable
+- **Idempotent Startup**: Safe to restart containers - only downloads Omeka if not already installed
 - **Unified Config Directory**: All configuration files (config.ini, db.ini, imagemagick-policy.xml, .htaccess) are stored in a single server-side config directory
 - **Security Hardening**:
   - MySQL 8 compatibility fixes
@@ -20,10 +22,9 @@ This is a unified Docker setup for Omeka Classic that supports both older versio
 omeka-docker-classic-generic/
 ├── Dockerfile                    # Multi-version Dockerfile
 ├── README.md                     # This file
-├── startup-script.sh             # Container startup script
+├── docker-entrypoint.sh          # Runtime Omeka installation and startup script
 ├── apache-site-omeka.conf        # Apache virtual host configuration
 ├── apache-conf-omeka.conf        # Apache general configuration
-├── https-fix.txt                 # HTTPS proxy detection code
 ├── extra-php-ini.txt             # PHP upload/post size limits
 ├── php.ini-production            # PHP production configuration
 └── config/                       # Server-side configuration templates
@@ -35,33 +36,32 @@ omeka-docker-classic-generic/
 
 ## Building Images
 
-### For Older Omeka Versions (PHP 5.6)
+Since Omeka is now installed at runtime, you only need to build images for each PHP version:
 
-Example for Omeka 2.2.2:
+### For PHP 5.6 (Older Omeka Versions)
+
 ```bash
 docker build \
   --build-arg PHP_VERSION=5.6 \
-  --build-arg OMEKA_VERSION=2.2.2 \
-  -t omeka-classic:2.2.2-php5.6 \
+  -t omeka-classic:php5.6 \
   .
 ```
 
-### For Newer Omeka Versions (PHP 7.4)
+### For PHP 7.4 (Newer Omeka Versions)
 
-Example for Omeka 2.7.1:
 ```bash
 docker build \
   --build-arg PHP_VERSION=7.4 \
-  --build-arg OMEKA_VERSION=2.7.1 \
-  -t omeka-classic:2.7.1-php7.4 \
+  -t omeka-classic:php7.4 \
   .
 ```
 
 ### Default Values
 
-If you don't specify build arguments:
-- `PHP_VERSION` defaults to `7.4`
-- `OMEKA_VERSION` must be specified
+- `PHP_VERSION` defaults to `7.4` if not specified
+- `OMEKA_VERSION` is set at **runtime** (not build time) via environment variable
+
+**Key Advantage**: A single built image (e.g., `omeka-classic:php7.4`) can run any Omeka version compatible with that PHP version. Just change the `OMEKA_VERSION` environment variable when starting the container.
 
 ## Version Compatibility Guide
 
@@ -117,13 +117,25 @@ On your server, create the following directory structure for each instance:
 
 ### Using Docker Run
 
+**With specific Omeka version:**
+```bash
+docker run -d \
+  --name omeka-instance-name \
+  --net=host \
+  -e OMEKA_VERSION=2.7.1 \
+  -e LH_INSTANCE_NUM=10 \
+  -v /var/www/instance_name:/host \
+  omeka-classic:php7.4
+```
+
+**With default Omeka version (2.7.1 for PHP 7.4, 2.2.2 for PHP 5.6):**
 ```bash
 docker run -d \
   --name omeka-instance-name \
   --net=host \
   -e LH_INSTANCE_NUM=10 \
   -v /var/www/instance_name:/host \
-  omeka-classic:2.7.1-php7.4
+  omeka-classic:php7.4
 ```
 
 ### Using Docker Compose
@@ -132,15 +144,22 @@ docker run -d \
 version: '3.8'
 services:
   omeka:
-    image: omeka-classic:2.7.1-php7.4
+    image: omeka-classic:php7.4
     container_name: omeka-instance-name
     environment:
+      - OMEKA_VERSION=2.7.1  # Optional - defaults to 2.7.1 for PHP 7.4
       - LH_INSTANCE_NUM=10
     volumes:
       - /var/www/instance_name:/host
     network_mode: host
     restart: unless-stopped
 ```
+
+### How It Works
+
+1. **First Startup**: Container downloads and installs Omeka based on `OMEKA_VERSION` env var
+2. **Subsequent Restarts**: Detects existing installation and skips download
+3. **Version Changes**: To change Omeka version, remove `/var/www/instance_name` contents and restart with new `OMEKA_VERSION`
 
 ### Port Mapping
 
@@ -169,10 +188,14 @@ All these directories must exist before starting the container.
 This Docker setup is compatible with the existing docker setups. The key differences:
 
 ### Old Setup
-- Required separate Docker images for PHP 5.6 and PHP 7.4
+- Required separate Docker images for each Omeka version
+- Omeka installed at build time
+- Changing versions required rebuilding images
 
 ### New Setup
-- Single Docker image per Omeka version (auto-detects PHP requirement)
+- Only 2 images needed: `omeka-classic:php5.6` and `omeka-classic:php7.4`
+- Omeka installed at runtime on first container start
+- Changing versions only requires updating `OMEKA_VERSION` env var and recreating container
 - All config files in `/var/www/[instance]/config/`
 - Same volume mounting pattern: `/var/www/[instance]:/host`
 - Port numbering scheme using LH_INSTANCE_NUM
@@ -242,30 +265,37 @@ If the calculated port is already in use, change `LH_INSTANCE_NUM` to a differen
 - MySQL 8 compatibility is automatically handled
 - Error logging is disabled in production for security
 
-## Building Multiple Versions
+## Building Base Images
 
-You can create a build script to generate images for multiple Omeka versions:
+You only need to build two base images (one for each PHP version):
 
 ```bash
 #!/bin/bash
 
-# Build PHP 5.6 images for older Omeka
-for version in 2.2.2 2.3.1 2.4.2; do
-  docker build \
-    --build-arg PHP_VERSION=5.6 \
-    --build-arg OMEKA_VERSION=$version \
-    -t omeka-classic:$version-php5.6 \
-    .
-done
+# Build PHP 5.6 base image (for Omeka 2.0.x - 2.3.x)
+docker build \
+  --build-arg PHP_VERSION=5.6 \
+  -t omeka-classic:php5.6 \
+  .
 
-# Build PHP 7.4 images for newer Omeka
-for version in 2.6.1 2.7.1; do
-  docker build \
-    --build-arg PHP_VERSION=7.4 \
-    --build-arg OMEKA_VERSION=$version \
-    -t omeka-classic:$version-php7.4 \
-    .
-done
+# Build PHP 7.4 base image (for Omeka 2.7.x+)
+docker build \
+  --build-arg PHP_VERSION=7.4 \
+  -t omeka-classic:php7.4 \
+  .
+```
+
+Then use these base images with different `OMEKA_VERSION` environment variables to run any compatible Omeka version:
+
+```bash
+# Run Omeka 2.2.2 with PHP 5.6 base image
+docker run -d -e OMEKA_VERSION=2.2.2 -e LH_INSTANCE_NUM=10 -v /var/www/instance1:/host omeka-classic:php5.6
+
+# Run Omeka 2.7.1 with PHP 7.4 base image
+docker run -d -e OMEKA_VERSION=2.7.1 -e LH_INSTANCE_NUM=20 -v /var/www/instance2:/host omeka-classic:php7.4
+
+# Run Omeka 2.6.1 with PHP 7.4 base image (different version, same image)
+docker run -d -e OMEKA_VERSION=2.6.1 -e LH_INSTANCE_NUM=30 -v /var/www/instance3:/host omeka-classic:php7.4
 ```
 
 ## Credits

@@ -43,10 +43,14 @@ FROM php:${PHP_VERSION}-apache
 
 LABEL maintainer="Braydon Justice <braydon.justice@1268456bcltd.ca>"
 
-ARG OMEKA_VERSION
 ARG PHP_VERSION
 
+# Make PHP_VERSION available at runtime for entrypoint script
+ENV PHP_VERSION=${PHP_VERSION}
 ENV DEBIAN_FRONTEND=noninteractive
+
+# OMEKA_VERSION should be set at runtime via docker run -e OMEKA_VERSION=x.x.x
+# If not set, defaults to 2.7.1 (PHP 7.4) or 2.2.2 (PHP 5.6)
 
 # Fix Debian Stretch repositories for PHP 5.6 (only applies if using 5.6)
 RUN if [ "${PHP_VERSION}" = "5.6" ]; then \
@@ -117,36 +121,9 @@ RUN if ls /tmp/ghostscript-libs/libgs* 1> /dev/null 2>&1; then \
     fi && \
     rm -rf /tmp/ghostscript-libs
 
-# Download and install Omeka Classic (combined for smaller layer)
-RUN wget -q https://github.com/omeka/Omeka/releases/download/v${OMEKA_VERSION}/omeka-${OMEKA_VERSION}.zip -O /tmp/omeka.zip && \
-    unzip -q /tmp/omeka.zip -d /var/www/ && \
-    rm -rf /var/www/html/ /tmp/omeka.zip && \
-    mv /var/www/omeka-${OMEKA_VERSION}/ /var/www/html
-
-# Set up all symlinks in a single layer (config and persistent data)
-# This allows config.ini, db.ini, imagemagick-policy.xml, files, themes, plugins, and logs to be managed on the server
-RUN rm /var/www/html/db.ini && \
-    ln -s /host/config/db.ini /var/www/html/db.ini && \
-    rm /etc/ImageMagick-6/policy.xml && \
-    ln -s /host/config/imagemagick-policy.xml /etc/ImageMagick-6/policy.xml && \
-    rm /var/www/html/application/config/config.ini && \
-    ln -s /host/config/config.ini /var/www/html/application/config/config.ini && \
-    rm /var/www/html/.htaccess && \
-    ln -s /host/config/.htaccess /var/www/html/.htaccess && \
-    rm -rf /var/www/html/files/ /var/www/html/themes/ /var/www/html/plugins/ /var/www/html/application/logs && \
-    ln -s /host/files/ /var/www/html/files && \
-    ln -s /host/themes/ /var/www/html/themes && \
-    ln -s /host/plugins/ /var/www/html/plugins && \
-    ln -s /host/logs/ /var/www/html/application/logs
-
-# Apply MySQL 8 compatibility fix and HTTPS proxy detection fix (combined layer)
-COPY https-fix.txt /tmp/https-fix.txt
-RUN sed -i 's/NO_AUTO_CREATE_USER,//g;s/,NO_AUTO_CREATE_USER//g' /var/www/html/application/libraries/Omeka/Application/Resource/Db.php && \
-    if [ "${PHP_VERSION}" = "5.6" ]; then \
-        sed -i '1r /tmp/https-fix.txt' /var/www/html/bootstrap.php; \
-    fi && \
-    rm -f /tmp/https-fix.txt && \
-    chown -R www-data:www-data /var/www/html/
+# Copy and configure entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Configure Apache and PHP settings (combined layer)
 COPY apache-site-omeka.conf apache-conf-omeka.conf extra-php-ini.txt /tmp/
@@ -162,3 +139,9 @@ RUN rm -f /etc/apache2/sites-available/* /etc/apache2/sites-enabled/* \
     rm -f /tmp/apache-site-omeka.conf /tmp/apache-conf-omeka.conf /tmp/extra-php-ini.txt
 
 WORKDIR /var/www/html
+
+# Set entrypoint to handle Omeka installation on first run
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+# Default command to start Apache
+CMD ["apache2-foreground"]
