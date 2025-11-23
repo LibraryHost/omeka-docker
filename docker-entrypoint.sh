@@ -1,6 +1,22 @@
 #!/bin/bash
 set -e
 
+# Trap signals for graceful shutdown
+trap 'echo "Received SIGTERM, shutting down gracefully..."; apache2ctl graceful-stop; exit 0' SIGTERM SIGINT
+
+# Validate required environment variables
+if [ -z "$LH_INSTANCE_NUM" ]; then
+    echo "ERROR: LH_INSTANCE_NUM environment variable is not set"
+    echo "Please set it when running the container: -e LH_INSTANCE_NUM=10"
+    exit 1
+fi
+
+# Validate LH_INSTANCE_NUM is a number
+if ! [[ "$LH_INSTANCE_NUM" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: LH_INSTANCE_NUM must be a numeric value, got: $LH_INSTANCE_NUM"
+    exit 1
+fi
+
 # Set default Omeka version based on PHP version if not provided
 if [ -z "$OMEKA_VERSION" ]; then
     if [ "$PHP_VERSION" = "5.6" ]; then
@@ -12,13 +28,57 @@ if [ -z "$OMEKA_VERSION" ]; then
     fi
 fi
 
-# Check if Omeka is already installed
-if [ ! -f "/var/www/html/index.php" ]; then
+echo "======================================"
+echo "Omeka Classic Container Startup"
+echo "======================================"
+echo "PHP Version: $PHP_VERSION"
+echo "Omeka Version: $OMEKA_VERSION"
+echo "Ghostscript Version: $GHOSTSCRIPT_VERSION"
+echo "Instance Number: $LH_INSTANCE_NUM"
+echo "Port: 28${LH_INSTANCE_NUM}0"
+echo "======================================"
+
+# Wait for database to be ready (if db.ini exists with connection info)
+if [ -f "/host/config/db.ini" ]; then
+    echo "Checking database connectivity..."
+    DB_HOST=$(grep -E '^\s*host\s*=' /host/config/db.ini | sed 's/.*=\s*"\(.*\)"/\1/')
+    DB_USER=$(grep -E '^\s*username\s*=' /host/config/db.ini | sed 's/.*=\s*"\(.*\)"/\1/')
+    DB_PASS=$(grep -E '^\s*password\s*=' /host/config/db.ini | sed 's/.*=\s*"\(.*\)"/\1/')
+
+    if [ -n "$DB_HOST" ] && [ -n "$DB_USER" ]; then
+        echo "Waiting for database at $DB_HOST..."
+        WAIT_COUNT=0
+        MAX_WAIT=30
+
+        while ! mysqladmin ping -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" --silent 2>/dev/null; do
+            WAIT_COUNT=$((WAIT_COUNT + 1))
+            if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+                echo "WARNING: Database not responding after ${MAX_WAIT} seconds. Continuing anyway..."
+                break
+            fi
+            echo "Waiting for database... (${WAIT_COUNT}/${MAX_WAIT})"
+            sleep 1
+        done
+
+        if [ $WAIT_COUNT -lt $MAX_WAIT ]; then
+            echo "Database is ready!"
+        fi
+    fi
+fi
+
+# Check if Omeka is already installed and verify version
+VERSION_FILE="/var/www/html/.omeka_version_${OMEKA_VERSION}"
+if [ -f "$VERSION_FILE" ] && [ -f "/var/www/html/index.php" ]; then
+    echo "Omeka $OMEKA_VERSION is already installed (verified by $VERSION_FILE)"
+elif [ -f "/var/www/html/index.php" ]; then
+    echo "WARNING: Omeka installation found but version marker missing. Skipping reinstallation."
+    echo "If you want to reinstall, remove /var/www/html/index.php"
+else
     echo "Omeka not found, installing version $OMEKA_VERSION..."
 
     # Download and install Omeka Classic
     echo "Downloading Omeka $OMEKA_VERSION from GitHub..."
-    wget -q https://github.com/omeka/Omeka/releases/download/v${OMEKA_VERSION}/omeka-${OMEKA_VERSION}.zip -O /tmp/omeka.zip
+    curl -fsSL https://github.com/omeka/Omeka/releases/download/v${OMEKA_VERSION}/omeka-${OMEKA_VERSION}.zip -o /tmp/omeka.zip
 
     echo "Extracting Omeka..."
     unzip -q /tmp/omeka.zip -d /var/www/
@@ -74,11 +134,28 @@ EOF
     echo "Setting ownership to www-data..."
     chown -R www-data:www-data /var/www/html/
 
+    # Create version marker file for idempotency
+    touch "$VERSION_FILE"
+    echo "$OMEKA_VERSION" > "$VERSION_FILE"
+
     echo "Omeka $OMEKA_VERSION installation complete!"
-else
-    echo "Omeka already installed, skipping installation."
 fi
 
+# Validate Apache configuration before starting
+echo "Validating Apache configuration..."
+if ! apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
+    echo "ERROR: Apache configuration test failed!"
+    apache2ctl configtest
+    exit 1
+fi
+echo "Apache configuration is valid!"
+
 # Execute the main container command (Apache)
-echo "Starting Apache..."
+echo ""
+echo "======================================"
+echo "Starting Apache on port 28${LH_INSTANCE_NUM}0..."
+echo "======================================"
+echo ""
+
+# Start Apache in background and wait for signals
 exec "$@"

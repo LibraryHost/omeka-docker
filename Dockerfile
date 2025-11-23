@@ -9,7 +9,9 @@
 # Stage 1: Builder - Compile Ghostscript
 # ============================================================================
 ARG PHP_VERSION=7.4
-FROM php:${PHP_VERSION}-apache AS builder
+ARG PHP_FULL_VERSION=7.4.33
+ARG GHOSTSCRIPT_VERSION=10.02.1
+FROM php:${PHP_FULL_VERSION}-apache AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -18,17 +20,20 @@ RUN apt-get -qq update && \
     apt-get -qq -y --no-install-recommends install \
         build-essential \
         autoconf \
+        automake \
         autogen \
         wget \
         ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 # Compile Ghostscript from source
+ARG GHOSTSCRIPT_VERSION=10.02.1
 RUN mkdir -p /installs && \
     cd /installs && \
-    wget -q https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs926/ghostpdl-9.26.tar.gz && \
-    tar -xzf ghostpdl-9.26.tar.gz && \
-    cd ghostpdl-9.26 && \
+    GHOSTSCRIPT_SHORT=$(echo ${GHOSTSCRIPT_VERSION} | tr -d '.') && \
+    wget -q https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs${GHOSTSCRIPT_SHORT}/ghostpdl-${GHOSTSCRIPT_VERSION}.tar.gz && \
+    tar -xzf ghostpdl-${GHOSTSCRIPT_VERSION}.tar.gz && \
+    cd ghostpdl-${GHOSTSCRIPT_VERSION} && \
     ./autogen.sh && \
     ./configure && \
     make -j$(nproc) && \
@@ -39,15 +44,18 @@ RUN mkdir -p /installs && \
 # ============================================================================
 # Stage 2: Final Image
 # ============================================================================
-FROM php:${PHP_VERSION}-apache
+ARG PHP_FULL_VERSION=7.4.33
+FROM php:${PHP_FULL_VERSION}-apache
 
 LABEL maintainer="Braydon Justice <braydon.justice@1268456bcltd.ca>"
 
-ARG PHP_VERSION
+ARG PHP_VERSION=7.4
+ARG GHOSTSCRIPT_VERSION=10.02.1
 
-# Make PHP_VERSION available at runtime for entrypoint script
-ENV PHP_VERSION=${PHP_VERSION}
-ENV DEBIAN_FRONTEND=noninteractive
+# Make versions available at runtime for entrypoint script
+ENV PHP_VERSION=${PHP_VERSION} \
+    GHOSTSCRIPT_VERSION=${GHOSTSCRIPT_VERSION} \
+    DEBIAN_FRONTEND=noninteractive
 
 # OMEKA_VERSION should be set at runtime via docker run -e OMEKA_VERSION=x.x.x
 # If not set, defaults to 2.7.1 (PHP 7.4) or 2.2.2 (PHP 5.6)
@@ -75,10 +83,16 @@ RUN apt-get -qq update && \
         zlib1g \
         libmagickwand-6.q16-6 \
         poppler-utils \
-        vim \
-        wget \
-        curl && \
-    rm -rf /var/lib/apt/lists/*
+        curl \
+        default-mysql-client && \
+    rm -rf /var/lib/apt/lists/* \
+           /var/cache/apt/archives/* \
+           /var/cache/apt/*.bin \
+           /usr/share/doc/* \
+           /usr/share/man/* \
+           /usr/share/locale/* \
+           /tmp/* \
+           /var/tmp/*
 
 # Install -dev packages, build PHP extensions, then remove -dev packages in single layer (saves ~50-100MB)
 # PHP 5.6 uses different syntax for gd and has mcrypt built-in
@@ -100,6 +114,7 @@ RUN apt-get -qq update && \
     fi && \
     pecl install imagick && \
     docker-php-ext-enable imagick && \
+    pecl clear-cache && \
     apt-get purge -y \
         libfreetype6-dev \
         libjpeg62-turbo-dev \
@@ -107,27 +122,32 @@ RUN apt-get -qq update && \
         libpng-dev \
         libmagickwand-dev && \
     apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* \
+           /var/cache/apt/archives/* \
+           /var/cache/apt/*.bin \
+           /usr/share/doc/* \
+           /usr/share/man/* \
+           /tmp/pear \
+           ~/.pearrc \
+           /usr/local/include/php* \
+           /usr/src/php* \
+           /tmp/* \
+           /var/tmp/*
 
-# Copy compiled Ghostscript from builder stage (binaries and data files)
+# Copy all files first (grouped for better layer caching)
 COPY --from=builder /usr/local/bin/gs* /usr/local/bin/
 COPY --from=builder /usr/local/share/ghostscript /usr/local/share/ghostscript
-
-# Create a temporary marker file in builder if libraries exist, then conditionally copy
-COPY --from=builder /usr/local/lib/ /tmp/ghostscript-libs/
-RUN if ls /tmp/ghostscript-libs/libgs* 1> /dev/null 2>&1; then \
-        cp -a /tmp/ghostscript-libs/libgs* /usr/local/lib/ && \
-        ldconfig; \
-    fi && \
-    rm -rf /tmp/ghostscript-libs
-
-# Copy and configure entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-# Configure Apache and PHP settings (combined layer)
 COPY apache-site-omeka.conf apache-conf-omeka.conf extra-php-ini.txt /tmp/
-RUN rm -f /etc/apache2/sites-available/* /etc/apache2/sites-enabled/* \
+
+# Configure all components in a single layer to reduce image size
+# Note: Ghostscript is typically built statically, so no .so files to copy
+RUN set -ex && \
+    ldconfig && \
+    # Configure entrypoint
+    chmod +x /usr/local/bin/docker-entrypoint.sh && \
+    # Configure Apache
+    rm -f /etc/apache2/sites-available/* /etc/apache2/sites-enabled/* \
         /etc/apache2/conf-enabled/other-vhosts-access-log.conf \
         /etc/apache2/conf-available/other-vhosts-access-log.conf && \
     cp /tmp/apache-site-omeka.conf /etc/apache2/sites-available/omeka.conf && \
@@ -135,10 +155,15 @@ RUN rm -f /etc/apache2/sites-available/* /etc/apache2/sites-enabled/* \
     a2ensite omeka && \
     a2enconf zzz-omeka && \
     echo 'Listen 28${LH_INSTANCE_NUM}0' > /etc/apache2/ports.conf && \
+    # Configure PHP
     cat /tmp/extra-php-ini.txt >> /usr/local/etc/php/php.ini-production && \
     rm -f /tmp/apache-site-omeka.conf /tmp/apache-conf-omeka.conf /tmp/extra-php-ini.txt
 
 WORKDIR /var/www/html
+
+# Health check to ensure container is responding
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD curl -f http://localhost:28${LH_INSTANCE_NUM}0/ || exit 1
 
 # Set entrypoint to handle Omeka installation on first run
 ENTRYPOINT ["docker-entrypoint.sh"]

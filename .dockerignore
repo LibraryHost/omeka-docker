@@ -1,28 +1,17 @@
-# Git files
+# Exclude documentation and non-essential files from build context
+*.md
+README.md
+CHANGELOG.md
+
+# Exclude version control
 .git
 .gitignore
 .gitattributes
 
-# Documentation
-README.md
-*.md
-
-# Build scripts
+# Exclude build scripts (not needed in image)
 build-images.sh
 
-# Editor and IDE files
-.vscode
-.idea
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Temporary files
-*.tmp
-*.bak
+# Exclude any local test or development files
 *.log
-
-# Config templates (we want the actual config files, not templates in some cases)
-# Commented out because we do want .template files copied
-# *.template
+*.tmp
+.DS_Store
