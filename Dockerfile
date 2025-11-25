@@ -15,9 +15,19 @@ FROM php:${PHP_FULL_VERSION}-apache AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Fix Debian repositories for PHP 5.6 in builder stage (old Debian versions are archived)
+ARG PHP_VERSION=7.4
+RUN if [ "${PHP_VERSION}" = "5.6" ]; then \
+    sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list && \
+    sed -i 's|security.debian.org|archive.debian.org/debian-security|g' /etc/apt/sources.list && \
+    sed -i '/stretch-updates/d' /etc/apt/sources.list && \
+    sed -i '/bullseye-updates/d' /etc/apt/sources.list && \
+    sed -ri '/debian-security.*-security/d' /etc/apt/sources.list; \
+    fi
+
 # Install build dependencies for Ghostscript
 RUN apt-get -qq update && \
-    apt-get -qq -y --no-install-recommends install \
+    apt-get -qq -y --allow-unauthenticated --no-install-recommends install \
         build-essential \
         autoconf \
         automake \
@@ -60,20 +70,28 @@ ENV PHP_VERSION=${PHP_VERSION} \
 # OMEKA_VERSION should be set at runtime via docker run -e OMEKA_VERSION=x.x.x
 # If not set, defaults to 2.7.1 (PHP 7.4) or 2.2.2 (PHP 5.6)
 
-# Fix Debian Stretch repositories for PHP 5.6 (only applies if using 5.6)
+# Fix Debian repositories for PHP 5.6 (old Debian versions are archived)
 RUN if [ "${PHP_VERSION}" = "5.6" ]; then \
     sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list && \
-    sed -i 's|security.debian.org|archive.debian.org|g' /etc/apt/sources.list && \
-    sed -i '/stretch-updates/d' /etc/apt/sources.list; \
+    sed -i 's|security.debian.org|archive.debian.org/debian-security|g' /etc/apt/sources.list && \
+    sed -i '/stretch-updates/d' /etc/apt/sources.list && \
+    sed -i '/bullseye-updates/d' /etc/apt/sources.list && \
+    sed -ri '/debian-security.*-security/d' /etc/apt/sources.list; \
     fi
 
 # Enable Apache rewrite module
 RUN a2enmod rewrite
 
 # Install runtime packages only (no -dev packages yet)
+# Note: ImageMagick package name differs between Debian versions
 RUN apt-get -qq update && \
-    apt-get -qq -y upgrade && \
-    apt-get -qq -y --no-install-recommends install \
+    apt-get -qq -y --allow-unauthenticated upgrade && \
+    if [ "${PHP_VERSION}" = "5.6" ]; then \
+        MAGICK_PKG="libmagickwand-6.q16-3"; \
+    else \
+        MAGICK_PKG="libmagickwand-6.q16-6"; \
+    fi && \
+    apt-get -qq -y --allow-unauthenticated --no-install-recommends install \
         unzip \
         libfreetype6 \
         libjpeg62-turbo \
@@ -81,7 +99,7 @@ RUN apt-get -qq update && \
         ffmpeg \
         libpng16-16 \
         zlib1g \
-        libmagickwand-6.q16-6 \
+        ${MAGICK_PKG} \
         poppler-utils \
         curl \
         default-mysql-client && \
@@ -97,7 +115,7 @@ RUN apt-get -qq update && \
 # Install -dev packages, build PHP extensions, then remove -dev packages in single layer (saves ~50-100MB)
 # PHP 5.6 uses different syntax for gd and has mcrypt built-in
 RUN apt-get -qq update && \
-    apt-get -qq -y --no-install-recommends install \
+    apt-get -qq -y --allow-unauthenticated --no-install-recommends install \
         libfreetype6-dev \
         libjpeg62-turbo-dev \
         libmcrypt-dev \
